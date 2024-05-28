@@ -33,7 +33,7 @@ ARG APT_PKGS="\
 # Apt Packages
 RUN echo \
     && export TEST="gh version" \
-    && bash -c "apt-get update"
+    && bash -c "apt-get update" \
     && bash -c "apt-get install -y --no-install-recommends -o Dpkg::Options::='--force-confold' ${APT_PKGS}" \
     && ${TEST} \
     && echo
