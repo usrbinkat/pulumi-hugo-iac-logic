@@ -45,7 +45,7 @@ RUN set -ex \
     && export urlHugoRelease="https://api.github.com/repos/gohugoio/hugo/releases/latest" \
     && export urlHugoVersion=$(curl -s ${urlHugoRelease} | awk -F '["v,]' '/tag_name/{print $5}') \
     && export urlHugoBase="https://github.com/gohugoio/hugo/releases/download" \
-    && export urlHugoBin="hugo_${urlHugoVersion}_linux-${arch}.deb" \
+    && export urlHugoBin="hugo_extended_${urlHugoVersion}_Linux-${arch}.deb" \
     && export urlHugo="${urlHugoBase}/v${urlHugoVersion}/${urlHugoBin}" \
     && curl --output /tmp/${urlHugoBin} -L ${urlHugo} \
     && sudo dpkg -i /tmp/${urlHugoBin} \
