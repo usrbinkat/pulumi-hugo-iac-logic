@@ -1,9 +1,0 @@
-[submodule "quickstart/themes/ananke"]
-	path = quickstart/themes/ananke
-	url = https://github.com/theNewDynamic/gohugo-theme-ananke.git
-[submodule "site/themes/ananke"]
-	path = site/themes/ananke
-	url = https://github.com/theNewDynamic/gohugo-theme-ananke.git
-[submodule ".devcontainer/site/site/themes/ananke"]
-	path = .devcontainer/site/site/themes/ananke
-	url = https://github.com/theNewDynamic/gohugo-theme-ananke.git
