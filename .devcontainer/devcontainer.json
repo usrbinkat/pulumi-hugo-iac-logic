@@ -1,5 +1,5 @@
 {
-  "name": "pulumi/devcontainer:hugo",
+  "name": "devcontainer",
   "remoteUser": "vscode",
   "dockerFile": "Dockerfile",
   "init": true,
@@ -9,8 +9,10 @@
   "updateRemoteUserUID": true,
   "shutdownAction": "stopContainer",
   "securityOpt": ["seccomp=unconfined"],
-  "features": {},
-  "mounts": [],
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+  },
+  "mounts": ["source=dind-var-lib-docker,target=/var/lib/docker,type=volume"],
   "postCreateCommand": "devcontainer-links",
   //"workspaceFolder": "/workspaces/devcontainer",
   //"workspaceMount": "source=.,target=/home/vscode/devcontainer,type=bind,consistency=cached",
@@ -212,17 +214,17 @@
           "colorOnWhiteSpaceOnly": true,
           "lightIndicatorStyleLineWidth": 12,
           "ignoreEmptyLines": true,
-          "errorColor": "rgba(255, 20, 147, 0.3)",
-          "tabmixColor": "rgba(128, 32, 96, 0.3)",
+          "errorColor": "rgba(255, 20, 147, 0.3)", // Bright Pink for errors
+          "tabmixColor": "rgba(128, 32, 96, 0.3)", // Purple for mixed tabs and spaces
           "colors": [
-            "rgba(50, 150, 250, 0.1)",
-            "rgba(200, 50, 250, 0.1)",
-            "rgba(50, 250, 150, 0.1)",
-            "rgba(250, 50, 150, 0.1)",
-            "rgba(50, 200, 250, 0.1)",
-            "rgba(150, 50, 250, 0.1)",
-            "rgba(50, 250, 200, 0.1)",
-            "rgba(250, 150, 50, 0.1)"
+            "rgba(50, 150, 250, 0.1)", // Bright Blue
+            "rgba(200, 50, 250, 0.1)", // Purple
+            "rgba(50, 250, 150, 0.1)", // Neon Green
+            "rgba(250, 50, 150, 0.1)", // Pink
+            "rgba(50, 200, 250, 0.1)", // Lighter Blue
+            "rgba(150, 50, 250, 0.1)", // Darker Purple
+            "rgba(50, 250, 200, 0.1)", // Brighter Green
+            "rgba(250, 150, 50, 0.1)" // Orange
           ],
           "ignoreErrorLanguages": [
             "haskell",
