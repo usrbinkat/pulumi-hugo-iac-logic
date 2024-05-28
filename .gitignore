@@ -10,3 +10,4 @@ local
 .pulumi/*
 .kube/*
 frontmatter.json
+site

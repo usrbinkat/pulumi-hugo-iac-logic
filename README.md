@@ -25,11 +25,20 @@ hugo new site site && cd site
 3. Add a theme to the site
 
 ```bash
-git submodule add https://github.com/theNewDynamic/gohugo-theme-ananke.git themes/ananke
-echo 'theme = "ananke"' >> config.toml
+# Add the Ananke theme
+git clone https://github.com/theNewDynamic/gohugo-theme-ananke.git themes/ananke && rm -rf themes/ananke/.git
+
+# Copy the example site content
+cp -r themes/ananke/exampleSite/* .
 ```
 
-4. Test the site locally
+4. Add the theme to the site configuration
+
+```bash
+echo 'theme = "ananke"' >> hugo.toml
+```
+
+5. Test the site locally
 
 ```bash
 hugo server
