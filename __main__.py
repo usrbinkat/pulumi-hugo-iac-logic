@@ -5,7 +5,7 @@ import pulumi_aws as aws
 import pulumi_synced_folder as synced_folder
 import subprocess
 
-# Constants for default values
+# Default Constant Values
 DEFAULT_BUILD_DIR = "hugo"
 DEFAULT_INDEX_DOC = "index.html"
 DEFAULT_ERROR_DOC = "404.html"
@@ -13,8 +13,9 @@ DEFAULT_ERROR_DOC = "404.html"
 # Get current working directory
 cwd = os.getcwd()
 
-# Import the program's configuration settings.
+# Pulumi configuration settings
 config = pulumi.Config()
+build_hugo = config.get_bool("build") or True
 public_read = config.get_bool("public") or False
 path_build = config.get("buildDir") or os.path.join(cwd, DEFAULT_BUILD_DIR)
 path_deploy = config.get("deployDir") or os.path.join(path_build, "public")
@@ -23,15 +24,16 @@ error_document = config.get("errorDoc") or DEFAULT_ERROR_DOC
 
 # Log the configuration settings.
 artifacts = {
+    "build": build_hugo,
     "buildDir": path_build,
     "deployDir": path_deploy,
     "indexDoc": index_document,
     "errorDoc": error_document
 }
-pulumi.log.info(f"Configuration settings: {artifacts}")
+pulumi.log.info(f"Hugo build configuration: {artifacts}")
 pulumi.export("artifacts", artifacts)
 
-# Build the website using hugo via a subprocess command.
+# Build hugo site via a subprocess command.
 def hugo_build_website():
     if not pulumi.runtime.is_dry_run():
         pulumi.log.info("Building the website using Hugo CLI.")
@@ -45,7 +47,9 @@ def hugo_build_website():
     else:
         pulumi.log.warn("Skipping Hugo build because this is a dry-run.")
 
-hugo_build_website()
+# Build the Hugo website if pulumi config `build` is set to true.
+if build_hugo:
+    hugo_build_website()
 
 # Create an S3 bucket and configure it as a website.
 bucket = aws.s3.Bucket(
@@ -55,11 +59,26 @@ bucket = aws.s3.Bucket(
         error_document=error_document
     ),
 )
-pulumi.export("bucket_name", bucket.bucket)
+
+# Configure public ACL block on the new bucket
+public_access_block = aws.s3.BucketPublicAccessBlock(
+    "public-access-block",
+    bucket=bucket.bucket,
+    block_public_acls=False,
+)
+
+# Set ownership controls for the new bucket
+ownership_controls = aws.s3.BucketOwnershipControls(
+    "ownership-controls",
+    bucket=bucket.bucket,
+    rule=aws.s3.BucketOwnershipControlsRuleArgs(
+        object_ownership="ObjectWriter",
+    )
+)
 
 # Attach a bucket policy to make the contents publicly readable if configured to do so.
 def create_bucket_policy(bucket_name):
-    return aws.s3.BucketPolicy(
+    bucket_policy = aws.s3.BucketPolicy(
         "hugo-bucket-policy",
         bucket=bucket_name,
         policy=bucket_name.apply(lambda name: json.dumps({
@@ -72,52 +91,34 @@ def create_bucket_policy(bucket_name):
             }]
         }))
     )
+    return bucket_policy
+
+# Log bucket name and set the bucket policy based on the public_read configuration.
+bucket.bucket.apply(lambda name: pulumi.log.info(f"Bucket policy public read access: {name}:policy:{public_read}"))
 
 if public_read:
-    pulumi.log.info(f"Setting bucket policy for public read access: {bucket.bucket}")
     bucket_policy = create_bucket_policy(bucket.bucket)
+    acl = "public-read"
+else:
+    bucket_policy = None
+    acl = "authenticated-read"
 
-# Determine ACL based on publicRead configuration
-acl = "public-read" if public_read else "private"
-
-# Sync the website files into the bucket
+# Sync directory hugo/public files into the bucket
 upload = synced_folder.S3BucketFolder(
-    "static",
+    "sync-static-site",
     bucket_name=bucket.bucket,
     path=path_deploy,
-    acl=acl
-)
-
-# Export the website URL
-url = pulumi.Output.concat("http://", bucket.website_endpoint)
-pulumi.export("website_url", url)
-
-# Set ownership controls for the new bucket
-ownership_controls = aws.s3.BucketOwnershipControls(
-    "ownership-controls",
-    bucket=bucket.bucket,
-    rule=aws.s3.BucketOwnershipControlsRuleArgs(
-        object_ownership="ObjectWriter",
-    )
-)
-
-# Configure public ACL block on the new bucket
-public_access_block = aws.s3.BucketPublicAccessBlock(
-    "public-access-block",
-    bucket=bucket.bucket,
-    block_public_acls=False,
-)
-
-# Use a synced folder to manage the files of the website.
-bucket_folder = synced_folder.S3BucketFolder(
-    "bucket-folder",
+    # ACL: Set based on public_read configuration.
+    # Docs: https://docs.aws.amazon.com/AmazonS3/latest/userguide/acl-overview.html#canned-acl
+    # Accepts: private, public-read, public-read-write, authenticated-read, aws-exec-read, bucket-owner-read, bucket-owner-full-control
     acl=acl,
-    bucket_name=bucket.bucket,
-    path=path_deploy,
-    opts=pulumi.ResourceOptions(depends_on=[
-        ownership_controls,
-        public_access_block
-    ])
+    opts=pulumi.ResourceOptions(
+        depends_on=[
+            bucket,
+            ownership_controls,
+            public_access_block
+        ]
+    ),
 )
 
 # Create a CloudFront CDN to distribute and cache the website.
@@ -178,7 +179,8 @@ cdn = aws.cloudfront.Distribution(
 )
 
 # Export the CDN URL and hostname for the website.
-pulumi.export("originURL", pulumi.Output.concat("http://", bucket.website_endpoint))
-pulumi.export("originHostname", bucket.website_endpoint)
-pulumi.export("cdnURL", pulumi.Output.concat("https://", cdn.domain_name))
+pulumi.export("bucket_name", bucket.bucket)
+pulumi.export("bucketHostname", bucket.website_endpoint)
 pulumi.export("cdnHostname", cdn.domain_name)
+pulumi.export("bucketURL", pulumi.Output.concat("http://", bucket.website_endpoint))
+pulumi.export("cdnURL", pulumi.Output.concat("https://", cdn.domain_name))
