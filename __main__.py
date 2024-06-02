@@ -123,8 +123,8 @@ upload = synced_folder.S3BucketFolder(
 
 # Create a CloudFront CDN to distribute and cache the website.
 cdn = aws.cloudfront.Distribution(
-    "cdn",
-    enabled=True,
+    "hugo-site-cdn",
+    enabled=public_read,
     origins=[
         aws.cloudfront.DistributionOriginArgs(
             origin_id=bucket.arn,
