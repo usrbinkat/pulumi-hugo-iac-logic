@@ -1,0 +1,17 @@
+name: next-level-iac
+description: deploy a static hugo site to aws s3
+main: .
+stackConfigDir: pulumi/stacks
+options:
+  refresh: always
+runtime:
+  name: python
+  options:
+    virtualenv: venv
+config:
+  pulumi:tags:
+    value:
+      pulumi:template: static-website-aws-python
+  pulumi:siteDir:
+    value:
+      pulumi:template: ./site/deploy

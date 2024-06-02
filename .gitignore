@@ -11,3 +11,5 @@ local
 .kube/*
 frontmatter.json
 site
+*.pyc
+venv/
