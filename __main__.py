@@ -4,6 +4,9 @@ import pulumi
 import pulumi_aws as aws
 import pulumi_synced_folder as synced_folder
 import subprocess
+import atexit
+import time
+import boto3
 
 # Default Constant Values
 DEFAULT_BUILD_DIR = "hugo"
@@ -101,7 +104,7 @@ if public_read:
     acl = "public-read"
 else:
     bucket_policy = None
-    acl = "authenticated-read"
+    acl = "private"
 
 # Sync directory hugo/public files into the bucket
 upload = synced_folder.S3BucketFolder(
@@ -109,8 +112,6 @@ upload = synced_folder.S3BucketFolder(
     bucket_name=bucket.bucket,
     path=path_deploy,
     # ACL: Set based on public_read configuration.
-    # Docs: https://docs.aws.amazon.com/AmazonS3/latest/userguide/acl-overview.html#canned-acl
-    # Accepts: private, public-read, public-read-write, authenticated-read, aws-exec-read, bucket-owner-read, bucket-owner-full-control
     acl=acl,
     opts=pulumi.ResourceOptions(
         depends_on=[
@@ -177,6 +178,31 @@ cdn = aws.cloudfront.Distribution(
         cloudfront_default_certificate=True,
     ),
 )
+
+# Function to create an invalidation
+def create_invalidation(id):
+    # Don't bother invalidating unless it's an actual deployment.
+    if pulumi.runtime.is_dry_run():
+        print("This is a Pulumi preview, so skipping cache invalidation.")
+        return
+
+    client = boto3.client("cloudfront")
+    result = client.create_invalidation(
+        DistributionId=id,
+        InvalidationBatch={
+            "CallerReference": f"invalidation-{time.time()}",
+            "Paths": {
+                "Quantity": 1,
+                "Items": ["/*"],
+            },
+        },
+    )
+
+    print(f"Cache invalidation for distribution {id}: {result['Invalidation']['Status']}.")
+
+# Register the invalidation function to run at the end of the program
+if public_read:
+    cdn.id.apply(lambda id: atexit.register(lambda: create_invalidation(id)))
 
 # Export the CDN URL and hostname for the website.
 pulumi.export("bucket_name", bucket.bucket)
