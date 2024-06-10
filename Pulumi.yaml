@@ -1,13 +1,13 @@
 name: next-level-iac
 description: deploy a static hugo site to aws s3
-main: ./pulumi
-stackConfigDir: ./pulumi/stacks
+main: .pulumi
+stackConfigDir: .pulumi/stacks
 options:
   refresh: always
 runtime:
   name: python
   options:
-    virtualenv: pulumi/venv
+    virtualenv: .pulumi/venv
 config:
   pulumi:tags:
     value:
