@@ -25,43 +25,42 @@ pulumi login
 aws sso login
 ```
 
-### Create a new Hugo site
+### Create a new Hugo static site from templates
 
 3. Create a new hugo project following the [official quickstart](https://gohugo.io/getting-started/quick-start/)
 
 ```bash
-hugo new site site && cd site
+hugo new site hugo
 ```
 
-4. Add a theme to the site
+4. Add a theme to your new site
 
 ```bash
-# Add the Ananke theme
-git clone https://github.com/theNewDynamic/gohugo-theme-ananke.git themes/ananke && rm -rf themes/ananke/.git
+git clone https://github.com/theNewDynamic/gohugo-theme-ananke.git hugo/themes/ananke && rm -rf hugo/themes/ananke/.git
 
 # Copy the example site content
-cp -r themes/ananke/exampleSite/* .
+cp -r hugo/themes/ananke/exampleSite/* ./hugo/
 ```
 
 5. Add the theme to the site configuration
 
 ```bash
-echo 'theme = "ananke"' >> hugo.toml
+echo 'theme = "ananke"' >> hugo/hugo.toml
 ```
 
 6. Test the site locally
 
 ```bash
-hugo server
+cd hugo && hugo server
 ```
 
 7. Build the site
 
 ```bash
-hugo --cleanDestinationDir --destination site/deploy/
+hugo --source ./hugo --destination public --cleanDestinationDir
 ```
 
-### Pulumi Project
+### Create a new Pulumi Project
 
 ```bash
 mkdir pulumi && pulumi new static-website-aws-python \
@@ -75,7 +74,11 @@ mkdir pulumi && pulumi new static-website-aws-python \
 source venv/bin/activate
 python -m pip install --upgrade pip setuptools wheel
 python -m pip install -r requirements.txt
-pulumi stack select --create nextleveliac
 ```
 
-Then, run `pulumi up`
+### Create or Select a Pulumi Stack
+
+```bash
+# Create a new stack and/or select it
+pulumi stack select --create nextleveliac
+```
