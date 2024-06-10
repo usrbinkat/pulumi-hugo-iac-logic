@@ -3,13 +3,10 @@ local
 .talos
 .kube
 .talos
-.pulumi
 .kube
-.github/dot.pulumi
-.talos
-.pulumi/*
 .kube/*
 frontmatter.json
-site
+.github/dot.pulumi
+.github/dot.pulumi/*
 *.pyc
-venv/
+.pulumi/venv/
