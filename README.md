@@ -1,7 +1,5 @@
 # Pulumi Next Level - IaC Logic
 
-> Based on the blog from [Christian Nunciato](https://github.com/cnunciato) [Next-level IaC: Drop those wrapper scripts and let your language do that for you](https://www.pulumi.com/blog/next-level-iac-pulumi-runtime-logic)
-
 Exercise in building and deploying a website with Pulumi.
 
 ## Before you start
@@ -82,3 +80,7 @@ python -m pip install -r requirements.txt
 # Create a new stack and/or select it
 pulumi stack select --create nextleveliac
 ```
+
+## Attribution
+Based on the blog from [Christian Nunciato](https://github.com/cnunciato):
+* [Next-level IaC: Drop those wrapper scripts and let your language do that for you](https://www.pulumi.com/blog/next-level-iac-pulumi-runtime-logic)
