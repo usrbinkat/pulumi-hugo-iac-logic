@@ -47,6 +47,16 @@ ownership_controls = aws.s3.BucketOwnershipControls(
 
 # Attach a bucket policy to make the contents publicly readable if configured to do so.
 def create_bucket_policy(bucket_name):
+    """
+    Creates an S3 bucket policy that allows public read access to objects in the bucket.
+
+    Args:
+        bucket_name (str): The name of the S3 bucket.
+
+    Returns:
+        pulumi.Output: The created S3 bucket policy resource.
+    """
+    # Create the S3 bucket policy resource
     bucket_policy = aws.s3.BucketPolicy(
         "hugo-bucket-policy",
         bucket=bucket_name,
