@@ -5,7 +5,7 @@ local
 .talos
 .pulumi
 .kube
-.pulumi
+.github/dot.pulumi
 .talos
 .pulumi/*
 .kube/*
