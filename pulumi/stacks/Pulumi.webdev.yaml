@@ -1,3 +1,0 @@
-config:
-  next-level-iac:build: "true"
-  next-level-iac:public: "false"
