@@ -11,7 +11,10 @@ runtime:
 config:
   pulumi:tags:
     value:
-      pulumi:template: static-website-aws-python
+      pulumi:template: next-level-iac
+  pulumi:hugoDir:
+    value:
+      pulumi:template: ./hugo
   pulumi:siteDir:
     value:
-      pulumi:template: ./hugo/public
+      pulumi:template: public
