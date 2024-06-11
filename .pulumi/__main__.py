@@ -4,7 +4,6 @@ import pulumi
 import pulumi_aws as aws
 import pulumi_synced_folder as synced_folder
 import subprocess
-import atexit
 import time
 import boto3
 
@@ -16,9 +15,50 @@ public_read = config.get_bool("public") or False
 error_document = config.get("errorDoc") or "404.html"
 index_document = config.get("indexDoc") or "index.html"
 
+# Hugo site build settings
+build_hugo = config.get_bool("build") or False
+
 # Set path of static site content to deploy
-path_hugo = config.get("hugoDir") or "hugo"
 path_deploy = config.get("siteDir") or "public"
+path_hugo = config.get("hugoDir") or "hugo"
+path_hugo = os.path.join(os.getcwd(), path_hugo)
+
+# Log configuration settings
+artifacts = {
+    "build": build_hugo,
+    "hugoDir": path_hugo,
+    "siteDir": path_deploy,
+    "indexDoc": index_document,
+    "errorDoc": error_document
+}
+pulumi.log.info(f"Hugo build configuration: {artifacts}")
+pulumi.export("artifacts", artifacts)
+
+# Function to build Hugo site via a subprocess command.
+def hugo_build_website():
+    """
+    Builds the Hugo website using the Hugo CLI.
+
+    Returns:
+        None
+    """
+    # Don't build the site if this is a dry-run
+    if pulumi.runtime.is_dry_run():
+        pulumi.log.warn("Skipping Hugo build because this is a dry-run.")
+        return
+    # Build the Hugo site
+    pulumi.log.info("Building the website using Hugo CLI.")
+    subprocess.run(
+        ["hugo", "--destination", path_deploy],
+        stdout=subprocess.PIPE,
+        cwd=path_hugo,
+        check=True,
+        shell=True,
+    )
+
+# Build the Hugo website if the build_hugo configuration is set to True
+if build_hugo:
+    hugo_build_website()
 
 # Create an S3 bucket and configure it as a website.
 bucket = aws.s3.Bucket(
@@ -159,6 +199,40 @@ cdn = aws.cloudfront.Distribution(
         cloudfront_default_certificate=True,
     ),
 )
+
+# Function to invalidate the CloudFront cache
+def create_invalidation(id):
+    """
+    Creates a CloudFront cache invalidation for the specified distribution ID.
+
+    Args:
+        id (str): The CloudFront distribution ID.
+
+    Returns:
+        None
+    """
+    # Don't bother invalidating unless it's an actual deployment.
+    if pulumi.runtime.is_dry_run():
+        pulumi.log.info("This is a Pulumi preview, so skipping cache invalidation.")
+        return
+    # Create a CloudFront client
+    client = boto3.client("cloudfront")
+    # Create an invalidation for the distribution
+    result = client.create_invalidation(
+        DistributionId=id,
+        InvalidationBatch={
+            "CallerReference": f"invalidation-{time.time()}",
+            "Paths": {
+                "Quantity": 1,
+                "Items": ["/*"],
+            },
+        },
+    )
+    pulumi.log.info(f"Cache invalidation for distribution {id}: {result['Invalidation']['Status']}.")
+
+# Invalidate the CloudFront cache if the CDN is enabled
+if public_read:
+    pulumi.Output.all(cdn.id).apply(lambda args: create_invalidation(args[0]))
 
 # Export the CDN URL and hostname for the website.
 pulumi.export("bucket_name", bucket.bucket)
