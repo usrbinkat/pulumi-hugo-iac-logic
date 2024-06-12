@@ -32,4 +32,4 @@ invalidate_cache:
 # Clean up build artifacts
 .PHONY: clean
 clean:
-	rm -rf $(HUGO_DESTINATION)
+	rm -rf $(HUGO_SOURCE)/$(HUGO_DESTINATION)
