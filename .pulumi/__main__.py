@@ -25,6 +25,7 @@ path_hugo = os.path.join(os.getcwd(), path_hugo)
 
 # Log configuration settings
 artifacts = {
+    "public": public_read,
     "build": build_hugo,
     "hugoDir": path_hugo,
     "siteDir": path_deploy,
@@ -36,17 +37,9 @@ pulumi.export("artifacts", artifacts)
 
 # Function to build Hugo site via a subprocess command.
 def hugo_build_website():
-    """
-    Builds the Hugo website using the Hugo CLI.
-
-    Returns:
-        None
-    """
-    # Don't build the site if this is a dry-run
     if pulumi.runtime.is_dry_run():
         pulumi.log.warn("Skipping Hugo build because this is a dry-run.")
         return
-    # Build the Hugo site
     pulumi.log.info("Building the website using Hugo CLI.")
     subprocess.run(
         ["hugo", "--destination", path_deploy],
@@ -74,6 +67,9 @@ public_access_block = aws.s3.BucketPublicAccessBlock(
     "public-access-block",
     bucket=bucket.bucket,
     block_public_acls=False,
+    block_public_policy=False,
+    ignore_public_acls=False,
+    restrict_public_buckets=False
 )
 
 # Set ownership controls for the new bucket
@@ -85,18 +81,8 @@ ownership_controls = aws.s3.BucketOwnershipControls(
     )
 )
 
-# Attach a bucket policy to make the contents publicly readable if configured to do so.
+# Function to create a bucket policy for public read access
 def create_bucket_policy(bucket_name):
-    """
-    Creates an S3 bucket policy that allows public read access to objects in the bucket.
-
-    Args:
-        bucket_name (str): The name of the S3 bucket.
-
-    Returns:
-        pulumi.Output: The created S3 bucket policy resource.
-    """
-    # Create the S3 bucket policy resource
     bucket_policy = aws.s3.BucketPolicy(
         "hugo-bucket-policy",
         bucket=bucket_name,
@@ -117,14 +103,10 @@ bucket.bucket.apply(lambda name: pulumi.log.info(f"Bucket policy public read acc
 
 # Check if the public_read variable is True
 if public_read:
-    # Create a bucket policy with public read access
     bucket_policy = create_bucket_policy(bucket.bucket)
-    # Set the ACL to public-read
     acl = "public-read"
 else:
-    # Set the bucket policy to None
     bucket_policy = None
-    # Set the ACL to private
     acl = "private"
 
 # Sync directory hugo/public files into the bucket
@@ -132,7 +114,6 @@ upload = synced_folder.S3BucketFolder(
     "sync-static-site",
     bucket_name=bucket.bucket,
     path=path_deploy,
-    # ACL: Set based on public_read configuration.
     acl=acl,
     opts=pulumi.ResourceOptions(
         depends_on=[
@@ -202,22 +183,10 @@ cdn = aws.cloudfront.Distribution(
 
 # Function to invalidate the CloudFront cache
 def create_invalidation(id):
-    """
-    Creates a CloudFront cache invalidation for the specified distribution ID.
-
-    Args:
-        id (str): The CloudFront distribution ID.
-
-    Returns:
-        None
-    """
-    # Don't bother invalidating unless it's an actual deployment.
     if pulumi.runtime.is_dry_run():
         pulumi.log.info("This is a Pulumi preview, so skipping cache invalidation.")
         return
-    # Create a CloudFront client
     client = boto3.client("cloudfront")
-    # Create an invalidation for the distribution
     result = client.create_invalidation(
         DistributionId=id,
         InvalidationBatch={
