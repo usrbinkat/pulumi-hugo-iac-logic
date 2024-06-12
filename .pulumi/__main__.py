@@ -29,10 +29,11 @@ error_document = config.get("errorDoc") or DEFAULT_ERROR_DOC
 # Log the configuration settings.
 artifacts = {
     "build": build_hugo,
+    "public": public_read,
     "buildDir": path_build,
     "deployDir": path_deploy,
     "indexDoc": index_document,
-    "errorDoc": error_document
+    "errorDoc": error_document,
 }
 pulumi.export("artifacts", artifacts)
 
