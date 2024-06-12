@@ -4,52 +4,54 @@ import pulumi
 import pulumi_aws as aws
 import pulumi_synced_folder as synced_folder
 import subprocess
+import atexit
 import time
 import boto3
 
+# Default Constant Values
+DEFAULT_BUILD_DIR = "hugo"
+DEFAULT_INDEX_DOC = "index.html"
+DEFAULT_ERROR_DOC = "404.html"
+depends = []
+
+# Get current working directory
+cwd = os.getcwd()
+
 # Pulumi configuration settings
 config = pulumi.Config()
-
-# Set S3 bucket configuration settings
+build_hugo = config.get_bool("build") or True
 public_read = config.get_bool("public") or False
-error_document = config.get("errorDoc") or "404.html"
-index_document = config.get("indexDoc") or "index.html"
+path_build = config.get("buildDir") or os.path.join(cwd, DEFAULT_BUILD_DIR)
+path_deploy = config.get("deployDir") or os.path.join(path_build, "public")
+index_document = config.get("indexDoc") or DEFAULT_INDEX_DOC
+error_document = config.get("errorDoc") or DEFAULT_ERROR_DOC
 
-# Hugo site build settings
-build_hugo = config.get_bool("build") or False
-
-# Set path of static site content to deploy
-path_deploy = config.get("siteDir") or "public"
-path_hugo = config.get("hugoDir") or "hugo"
-path_hugo = os.path.join(os.getcwd(), path_hugo)
-
-# Log configuration settings
+# Log the configuration settings.
 artifacts = {
-    "public": public_read,
     "build": build_hugo,
-    "hugoDir": path_hugo,
-    "siteDir": path_deploy,
+    "buildDir": path_build,
+    "deployDir": path_deploy,
     "indexDoc": index_document,
     "errorDoc": error_document
 }
-pulumi.log.info(f"Hugo build configuration: {artifacts}")
 pulumi.export("artifacts", artifacts)
 
-# Function to build Hugo site via a subprocess command.
+# Build hugo site via a subprocess command.
 def hugo_build_website():
-    if pulumi.runtime.is_dry_run():
-        pulumi.log.warn("Skipping Hugo build because this is a dry-run.")
-        return
-    pulumi.log.info("Building the website using Hugo CLI.")
-    subprocess.run(
-        ["hugo", "--destination", path_deploy],
-        stdout=subprocess.PIPE,
-        cwd=path_hugo,
-        check=True,
-        shell=True,
-    )
+    if not pulumi.runtime.is_dry_run():
+        pulumi.log.info("Building the website using Hugo CLI.")
+        subprocess.run(
+            ["hugo", "--source", path_build],
+            stdout=subprocess.PIPE,
+            cwd=path_build,
+            check=True,
+            shell=True,
+        )
 
-# Build the Hugo website if the build_hugo configuration is set to True
+    else:
+        pulumi.log.warn("Skipping Hugo build because this is a dry-run.")
+
+# Build the Hugo website if pulumi config `build` is set to true.
 if build_hugo:
     hugo_build_website()
 
@@ -61,6 +63,7 @@ bucket = aws.s3.Bucket(
         error_document=error_document
     ),
 )
+depends.append(bucket)
 
 # Configure public ACL block on the new bucket
 public_access_block = aws.s3.BucketPublicAccessBlock(
@@ -69,8 +72,12 @@ public_access_block = aws.s3.BucketPublicAccessBlock(
     block_public_acls=False,
     block_public_policy=False,
     ignore_public_acls=False,
-    restrict_public_buckets=False
+    restrict_public_buckets=False,
+    opts=pulumi.ResourceOptions(
+        depends_on=depends,
+    )
 )
+depends.append(public_access_block)
 
 # Set ownership controls for the new bucket
 ownership_controls = aws.s3.BucketOwnershipControls(
@@ -78,10 +85,14 @@ ownership_controls = aws.s3.BucketOwnershipControls(
     bucket=bucket.bucket,
     rule=aws.s3.BucketOwnershipControlsRuleArgs(
         object_ownership="ObjectWriter",
+    ),
+    opts=pulumi.ResourceOptions(
+        depends_on=depends,
     )
 )
+depends.append(ownership_controls)
 
-# Function to create a bucket policy for public read access
+# Attach a bucket policy to make the contents publicly readable if configured to do so.
 def create_bucket_policy(bucket_name):
     bucket_policy = aws.s3.BucketPolicy(
         "hugo-bucket-policy",
@@ -94,16 +105,19 @@ def create_bucket_policy(bucket_name):
                 "Action": ["s3:GetObject"],
                 "Resource": [f"arn:aws:s3:::{name}/*"]
             }]
-        }))
+        })),
+        opts=pulumi.ResourceOptions(
+            depends_on=depends,
+        )
     )
     return bucket_policy
 
 # Log bucket name and set the bucket policy based on the public_read configuration.
-bucket.bucket.apply(lambda name: pulumi.log.info(f"Bucket policy public read access: {name}:policy:{public_read}"))
+bucket.bucket.apply(lambda name: pulumi.log.info(f"Public read: policy:{name}:{public_read}"))
 
-# Check if the public_read variable is True
 if public_read:
     bucket_policy = create_bucket_policy(bucket.bucket)
+    depends.append(bucket_policy)
     acl = "public-read"
 else:
     bucket_policy = None
@@ -114,14 +128,11 @@ upload = synced_folder.S3BucketFolder(
     "sync-static-site",
     bucket_name=bucket.bucket,
     path=path_deploy,
+    # ACL: Set based on public_read configuration.
     acl=acl,
     opts=pulumi.ResourceOptions(
-        depends_on=[
-            bucket,
-            ownership_controls,
-            public_access_block
-        ]
-    ),
+        depends_on=depends,
+    )
 )
 
 # Create a CloudFront CDN to distribute and cache the website.
@@ -179,13 +190,18 @@ cdn = aws.cloudfront.Distribution(
     viewer_certificate=aws.cloudfront.DistributionViewerCertificateArgs(
         cloudfront_default_certificate=True,
     ),
+    opts=pulumi.ResourceOptions(
+        depends_on=depends,
+    )
 )
 
-# Function to invalidate the CloudFront cache
+# Function to create an invalidation
 def create_invalidation(id):
+    # Don't bother invalidating unless it's an actual deployment.
     if pulumi.runtime.is_dry_run():
         pulumi.log.info("This is a Pulumi preview, so skipping cache invalidation.")
         return
+
     client = boto3.client("cloudfront")
     result = client.create_invalidation(
         DistributionId=id,
@@ -197,11 +213,12 @@ def create_invalidation(id):
             },
         },
     )
+
     pulumi.log.info(f"Cache invalidation for distribution {id}: {result['Invalidation']['Status']}.")
 
-# Invalidate the CloudFront cache if the CDN is enabled
+# Register the invalidation function to run at the end of the program
 if public_read:
-    pulumi.Output.all(cdn.id).apply(lambda args: create_invalidation(args[0]))
+    cdn.id.apply(lambda id: atexit.register(lambda: create_invalidation(id)))
 
 # Export the CDN URL and hostname for the website.
 pulumi.export("bucket_name", bucket.bucket)

@@ -10,3 +10,5 @@ frontmatter.json
 .github/dot.pulumi/*
 *.pyc
 .pulumi/venv/
+.pulumi
+venv
