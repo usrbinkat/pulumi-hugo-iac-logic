@@ -2,7 +2,6 @@
 HUGO_SOURCE = hugo
 HUGO_DESTINATION = public
 PULUMI_STACK = webdev
-CLOUDFRONT_DISTRIBUTION_ID = E1A2B3C4D5
 
 # Define default target
 .PHONY: all

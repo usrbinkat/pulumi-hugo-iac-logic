@@ -55,30 +55,13 @@ cd hugo && hugo server
 7. Build the site
 
 ```bash
-hugo --source ./hugo --destination public --cleanDestinationDir
-```
-
-### Create a new Pulumi Project
-
-```bash
-mkdir pulumi && pulumi new static-website-aws-python \
-      --name next-level-iac \
-      --description "deploy a static hugo site to aws s3" \
-      --generate-only \
-      --dir . --force
-```
-
-```bash
-source venv/bin/activate
-python -m pip install --upgrade pip setuptools wheel
-python -m pip install -r requirements.txt
+hugo --source hugo --destination public --cleanDestinationDir
 ```
 
 ### Create or Select a Pulumi Stack
 
 ```bash
-# Create a new stack and/or select it
-pulumi stack select --create nextleveliac
+make
 ```
 
 ## Attribution
