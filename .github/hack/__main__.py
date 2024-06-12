@@ -198,7 +198,7 @@ cdn = aws.cloudfront.Distribution(
 
 # Function to create an invalidation
 def create_invalidation(id):
-    # Don't bother invalidating unless it's an actual deployment.
+    # Do not invalidate unless it's an actual deployment.
     if pulumi.runtime.is_dry_run():
         pulumi.log.info("This is a Pulumi preview, so skipping cache invalidation.")
         return

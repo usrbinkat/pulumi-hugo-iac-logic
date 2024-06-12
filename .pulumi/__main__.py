@@ -37,6 +37,25 @@ artifacts = {
 }
 pulumi.export("artifacts", artifacts)
 
+# Build hugo site via a subprocess command.
+def hugo_build_website():
+    if not pulumi.runtime.is_dry_run():
+        pulumi.log.info("Building the website using Hugo CLI.")
+        subprocess.run(
+            ["hugo", "--source", path_build],
+            stdout=subprocess.PIPE,
+            cwd=path_build,
+            check=True,
+            shell=True,
+        )
+
+    else:
+        pulumi.log.warn("Skipping Hugo build because this is a dry-run.")
+
+# Build the hugo site if pulumi config `build` is set to true.
+if build_hugo:
+    hugo_build_website()
+
 # Create an S3 bucket and configure it as a website.
 bucket = aws.s3.Bucket(
     "next-level-iac",
@@ -176,6 +195,34 @@ cdn = aws.cloudfront.Distribution(
         depends_on=depends,
     )
 )
+
+# Function to create a CDN CloudFront invalidation
+def create_invalidation(id):
+
+    # Do not invalidate unless it's an actual deployment phase.
+    if pulumi.runtime.is_dry_run():
+        pulumi.log.warn("Skipping CloudFront invalidation because this is a dry-run.")
+        return
+
+    # Create a CloudFront client
+    client = boto3.client("cloudfront")
+
+    # Create an invalidation request
+    invalidation = client.create_invalidation(
+        DistributionId=id,
+        InvalidationBatch={
+            "CallerReference": f"invalidation-{time.time()}",
+            "Paths": {
+                "Quantity": 1,
+                "Items": ["/*"],
+            },
+        },
+    )
+    return invalidation
+
+# Register the CloudFront invalidation function to run at the end of the Pulumi program.
+if public_read:
+    cdn.id.apply(lambda id: atexit.register(lambda: create_invalidation(id)))
 
 # Export the CDN URL and hostname for the website.
 pulumi.export("bucket_name", bucket.bucket)
